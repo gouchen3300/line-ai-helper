@@ -38,15 +38,15 @@ def callback():
 
     return 'OK'
 
-# 修正：使用 LINE v3 官方標準的裝飾器語法，徹底解決 AttributeError
+# 處理 LINE 文字訊息的邏輯
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     user_message = event.message.text
     
     try:
-        # 使用完整模型路徑
+        # 修正：回歸 2026 新版 SDK 標準，直接使用單純名稱，由 SDK 自動對接最新穩定版端點
         response = genai_client.models.generate_content(
-            model='publishers/google/models/gemini-1.5-flash',
+            model='gemini-1.5-flash',
             contents=user_message,
         )
         reply_text = response.text
