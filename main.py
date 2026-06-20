@@ -8,16 +8,15 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 app = Flask(__name__)
 
-# ==========================================
-# 🔥 核心：直接把通行證寫在這裡，徹底繞過壞掉的 Render 後台！
-# 請把後面的 '您的...' 刪除，精準換成您真正的字串（記得保留單引號）
-# ==========================================
+# =======================================================
+# 🔥 請在下方單引號內，直接填入您的專案通行證（徹底繞過 Render 後台）
+# =======================================================
 LINE_ACCESS_TOKEN = '您的_LINE_CHANNEL_ACCESS_TOKEN'
 LINE_SECRET = '您的_LINE_CHANNEL_SECRET'
 GEMINI_KEY = '您的_GEMINI_API_KEY'
-# ==========================================
+# =======================================================
 
-# 初始化 LINE SDK
+# 初始化 LINE SDK（直接帶入上面寫死的字串）
 configuration = Configuration(access_token=LINE_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_SECRET)
 
@@ -35,7 +34,7 @@ def callback():
 def handle_message(event):
     user_message = event.message.text
     
-    # 使用底層官方標準 API 網址直連 Gemini
+    # 網址直接帶入寫死的 GEMINI_KEY
     api_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
     
     headers = {
