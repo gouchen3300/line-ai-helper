@@ -4,6 +4,7 @@ from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage
+from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from google import genai
 
 # 初始化 Flask 應用程式
@@ -29,37 +30,33 @@ genai_client = genai.Client(api_key=gemini_key)
 def callback():
     signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
-    app.logger.info("Request body: " + body)
-
+    
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        app.logger.error("Invalid signature. Please check your Channel Secret and Access Token.")
         abort(400)
 
     return 'OK'
 
-# 處理 LINE 文字訊息的邏輯
-@handler.add(event_type='message', message_type='text')
+# 修正：使用 LINE v3 官方標準的裝飾器語法，徹底解決 AttributeError
+@handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     user_message = event.message.text
     
     try:
-        # 使用修正後的完整模型路徑，避免新舊 SDK 衝突導致的 404 錯誤
+        # 使用完整模型路徑
         response = genai_client.models.generate_content(
             model='publishers/google/models/gemini-1.5-flash',
             contents=user_message,
         )
         reply_text = response.text
     except Exception as e:
-        # 發生錯誤時，將錯誤訊息回傳至 LINE 視窗，方便第一時間排查
-        reply_text = f"【系統警報】AI 連線失敗，請檢查 Render 紀錄。\n錯誤原因：{str(e)}"
-        print(f"Gemini API 呼叫失敗: {str(e)}")
+        reply_text = f"【系統警報】AI 連線失敗，錯誤原因：{str(e)}"
 
     # 回傳訊息給 LINE 使用者
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
-        line_bot_api.reply_message_with_http_info(
+        line_bot_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
                 messages=[TextMessage(text=reply_text)]
