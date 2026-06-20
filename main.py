@@ -5,7 +5,7 @@ from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
-from google import genai
+import google.generativeai as generativeai  # 切換回最成熟穩定的官方舊版 SDK
 
 # 初始化 Flask 應用程式
 app = Flask(__name__)
@@ -23,8 +23,8 @@ if not access_token or not channel_secret or not gemini_key:
 configuration = Configuration(access_token=access_token)
 handler = WebhookHandler(channel_secret)
 
-# 初始化新版 Google GenAI SDK
-genai_client = genai.Client(api_key=gemini_key)
+# 使用穩定版 SDK 設定金鑰
+generativeai.configure(api_key=gemini_key)
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -44,11 +44,9 @@ def handle_message(event):
     user_message = event.message.text
     
     try:
-        # 修正：回歸 2026 新版 SDK 標準，直接使用單純名稱，由 SDK 自動對接最新穩定版端點
-        response = genai_client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=user_message,
-        )
+        # 改用傳統穩定版 SDK 呼叫方式，強制避開新版 SDK 的網址拼湊 Bug
+        model = generativeai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(user_message)
         reply_text = response.text
     except Exception as e:
         reply_text = f"【系統警報】AI 連線失敗，錯誤原因：{str(e)}"
