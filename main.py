@@ -1,6 +1,6 @@
 import os
-import google.generativeai as genai
 from flask import Flask, request, abort
+from google import genai
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage
@@ -8,15 +8,13 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 app = Flask(__name__)
 
-# 設定 Gemini AI
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-pro')
+# 使用 2026 年最新 google-genai 寫法初始化客戶端
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 # 設定 LINE Bot 憑證
-# 加上 host 參數，徹底杜絕最新版 SDK 出現 NoneType + str 的底層錯誤
 configuration = Configuration(
     access_token=os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"),
-    host="https://api.line.me" 
+    host="https://api.line.me"
 )
 handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
 
@@ -34,13 +32,17 @@ def callback():
 def handle_message(event):
     user_message = event.message.text
     try:
-        # 呼叫 Gemini 產生回應
-        response = model.generate_content(user_message)
+        # 改用最新、最穩定的 gemini-1.5-flash 模型
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=user_message,
+        )
         reply_text = response.text
     except Exception as e:
-        reply_text = "真抱歉，我現在腦袋有點打結，請再跟我說一次！"
+        # 如果還是出錯，把錯誤訊息直接吐在 LINE 上，方便我們一秒抓鬼
+        reply_text = f"Gemini 連線失敗，錯誤回報：{str(e)}"
 
-    # 修正：改用最標準的 MessagingApi 進行單純的文字回覆
+    # 透過 LINE 發送回覆
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
         line_bot_api.reply_message(
