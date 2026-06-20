@@ -32,7 +32,7 @@ def callback():
 def handle_message(event):
     user_message = event.message.text
     
-    # 繞過 SDK，直接使用底層官方標準 API 網址 (指定最穩定的 v1 版本)
+    # 直接使用底層官方標準 API 網址 (指定最穩定的 v1 版本)
     api_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={gemini_key}"
     
     headers = {
@@ -50,11 +50,9 @@ def handle_message(event):
         response = requests.post(api_url, json=payload, headers=headers, timeout=15)
         res_json = response.json()
         
-        # 解析 Google 回傳的標準 JSON 結構
         if response.status_code == 200:
             reply_text = res_json['candidates'][0]['content']['parts'][0]['text']
         else:
-            # 如果失敗，直接把 Google 後台最原始的錯誤代碼吐出來
             error_msg = res_json.get('error', {}).get('message', '未知錯誤')
             reply_text = f"【系統診斷】Google拒絕連線。\n代碼: {response.status_code}\n原因: {error_msg}"
             
