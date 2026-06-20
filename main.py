@@ -44,8 +44,8 @@ def handle_message(event):
     user_message = event.message.text
     
     try:
-        # 使用傳統穩定版模型呼叫
-        model = generativeai.GenerativeModel('gemini-1.5-flash')
+        # 修正核心：使用新版 SDK 嚴格要求的完整模型識別路徑
+        model = generativeai.GenerativeModel(model_name='models/gemini-1.5-flash-latest')
         response = model.generate_content(user_message)
         reply_text = response.text
     except Exception as e:
