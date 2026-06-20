@@ -1,11 +1,11 @@
 import os
 import sys
+import requests
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
-import google.generativeai as generativeai
 
 app = Flask(__name__)
 
@@ -32,23 +32,34 @@ def callback():
 def handle_message(event):
     user_message = event.message.text
     
-    # 【自動監測機制】
-    # 檢查環境變數是否真的有讀進來
-    if not gemini_key:
-        debug_info = "狀態：Render 完全沒讀到 GEMINI_API_KEY 變數！(請檢查 Environment 頁面)"
-    else:
-        # 安全地遮蔽中間，只顯示頭尾，保護隱私又能對答案
-        debug_info = f"狀態：已讀到金鑰，開頭為「{gemini_key[:4]}...」，結尾為「...{gemini_key[-4:]}」"
+    # 繞過 SDK，直接使用底層官方標準 API 網址 (指定最穩定的 v1 版本)
+    api_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+    
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "contents": [{
+            "parts": [{"text": user_message}]
+        }]
+    }
 
     try:
-        # 設定並呼叫 Gemini
-        generativeai.configure(api_key=gemini_key)
-        model = generativeai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(user_message)
-        reply_text = response.text
+        # 直接對 Google 發送請求
+        response = requests.post(api_url, json=payload, headers=headers, timeout=15)
+        res_json = response.json()
+        
+        # 解析 Google 回傳的標準 JSON 結構
+        if response.status_code == 200:
+            reply_text = res_json['candidates'][0]['content']['parts'][0]['text']
+        else:
+            # 如果失敗，直接把 Google 後台最原始的錯誤代碼吐出來
+            error_msg = res_json.get('error', {}).get('message', '未知錯誤')
+            reply_text = f"【系統診斷】Google拒絕連線。\n代碼: {response.status_code}\n原因: {error_msg}"
+            
     except Exception as e:
-        # 失敗時，除了錯誤原因，連同上面的【變數檢查狀態】一起吐回 LINE 畫面
-        reply_text = f"【系統診斷報告】\n\n1. {debug_info}\n\n2. 錯誤原因：{str(e)}"
+        reply_text = f"【系統連線失敗】:\n{str(e)}"
 
     # 回傳訊息給 LINE
     with ApiClient(configuration) as api_client:
