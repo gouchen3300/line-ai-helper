@@ -1,4 +1,5 @@
 import os
+import sys
 import requests
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
@@ -8,17 +9,18 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 app = Flask(__name__)
 
-# =======================================================
-# 🔥 請在下方單引號內，直接填入您的專案通行證（徹底繞過 Render 後台）
-# =======================================================
-LINE_ACCESS_TOKEN = '您的_LINE_CHANNEL_ACCESS_TOKEN'
-LINE_SECRET = '您的_LINE_CHANNEL_SECRET'
-GEMINI_KEY = '您的_GEMINI_API_KEY'
-# =======================================================
+# 安全地從環境變數讀取，絕不寫死
+access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
+channel_secret = os.getenv('LINE_CHANNEL_SECRET')
+gemini_key = os.getenv('GEMINI_API_KEY')
 
-# 初始化 LINE SDK（直接帶入上面寫死的字串）
-configuration = Configuration(access_token=LINE_ACCESS_TOKEN)
-handler = WebhookHandler(LINE_SECRET)
+if not access_token or not channel_secret or not gemini_key:
+    print("錯誤：環境變數讀取失敗，請檢查 Render 的 Environment 設定。")
+    sys.exit(1)
+
+# 初始化 LINE SDK
+configuration = Configuration(access_token=access_token)
+handler = WebhookHandler(channel_secret)
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -34,13 +36,10 @@ def callback():
 def handle_message(event):
     user_message = event.message.text
     
-    # 網址直接帶入寫死的 GEMINI_KEY
-    api_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+    # 網址直連 Google Gemini 官方穩定版 API 端點
+    api_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={gemini_key}"
     
-    headers = {
-        "Content-Type": "application/json"
-    }
-    
+    headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{
             "parts": [{"text": user_message}]
@@ -55,7 +54,7 @@ def handle_message(event):
             reply_text = res_json['candidates'][0]['content']['parts'][0]['text']
         else:
             error_msg = res_json.get('error', {}).get('message', '未知錯誤')
-            reply_text = f"【Google拒絕連線】\n代碼: {response.status_code}\n原因: {error_msg}"
+            reply_text = f"【Google拒絕連線】\n原因: {error_msg}"
             
     except Exception as e:
         reply_text = f"【系統連線失敗】:\n{str(e)}"
