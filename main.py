@@ -3,17 +3,21 @@ import google.generativeai as genai
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import Configuration, ApiClient, MessagingApiBlob, ReplyMessageRequest, TextMessage
+from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 app = Flask(__name__)
 
-# 設定 Gemini AI (從環境變數讀取金鑰)
+# 設定 Gemini AI
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-pro')
 
-# 設定 LINE Bot (從環境變數讀取憑證)
-configuration = Configuration(access_token=os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"))
+# 設定 LINE Bot 憑證
+# 加上 host 參數，徹底杜絕最新版 SDK 出現 NoneType + str 的底層錯誤
+configuration = Configuration(
+    access_token=os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"),
+    host="https://api.line.me" 
+)
 handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
 
 @app.route("/callback", methods=['POST'])
@@ -36,14 +40,14 @@ def handle_message(event):
     except Exception as e:
         reply_text = "真抱歉，我現在腦袋有點打結，請再跟我說一次！"
 
-    # 將 Gemini 的回答回傳給使用者
+    # 修正：改用最標準的 MessagingApi 進行單純的文字回覆
     with ApiClient(configuration) as api_client:
-        messaging_api = MessagingApiBlob(api_client) # 用於最新 v3 版本的發送機制
-        # 這裡會自動代入最新鮮的 Reply Token，絕不卡死
-        api_client.call_api(
-            '/v2/bot/message/reply', 'POST',
-            body={'replyToken': event.reply_token, 'messages': [{'type': 'text', 'text': reply_text}]},
-            auth_settings=['Bearer']
+        line_bot_api = MessagingApi(api_client)
+        line_bot_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=reply_text)]
+            )
         )
 
 if __name__ == "__main__":
